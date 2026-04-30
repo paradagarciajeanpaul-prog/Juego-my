@@ -1,0 +1,264 @@
+import React, { useState } from "react";
+import { StyleSheet, Text, View, TouchableOpacity, TextInput } from "react-native";
+
+const verbs = ["running", "eating", "jumping", "reading", "writing"];
+
+const createPlayers = () => ([
+  { id: 1, name: "Player 1", hp: 100, x: 50, y: 50, alive: true },
+  { id: 2, name: "Player 2", hp: 100, x: 100, y: 50, alive: true },
+  { id: 3, name: "Player 3", hp: 100, x: 50, y: 100, alive: true },
+  { id: 4, name: "Player 4", hp: 100, x: 100, y: 100, alive: true },
+]);
+
+const createMonsters = () => ([
+  { id: 1, hp: 50, x: 200, y: 200 },
+  { id: 2, hp: 50, x: 250, y: 300 },
+]);
+
+export default function App() {
+  const [players, setPlayers] = useState(createPlayers());
+  const [currentPlayerIndex, setCurrentPlayerIndex] = useState(0);
+  const [monsters, setMonsters] = useState(createMonsters());
+
+  const [inBattle, setInBattle] = useState(false);
+  const [currentVerb, setCurrentVerb] = useState("");
+  const [input, setInput] = useState("");
+  const [message, setMessage] = useState("");
+  const [currentMonster, setCurrentMonster] = useState(null);
+
+  const currentPlayer = players[currentPlayerIndex];
+
+  const move = (dx, dy) => {
+    if (inBattle || !currentPlayer.alive) return;
+
+    const updatedPlayers = [...players];
+    const player = { ...currentPlayer };
+
+    player.x += dx;
+    player.y += dy;
+
+    updatedPlayers[currentPlayerIndex] = player;
+    setPlayers(updatedPlayers);
+
+    monsters.forEach((monster) => {
+      if (
+        Math.abs(player.x - monster.x) < 40 &&
+        Math.abs(player.y - monster.y) < 40
+      ) {
+        startBattle(monster);
+      }
+    });
+  };
+
+  const startBattle = (monster) => {
+    const verb = verbs[Math.floor(Math.random() * verbs.length)];
+    setCurrentVerb(verb);
+    setCurrentMonster(monster);
+    setInBattle(true);
+    setMessage(`Use this verb: ${verb}`);
+  };
+
+  const attack = () => {
+    const correct = `i am ${currentVerb}`;
+
+    if (input.toLowerCase().trim() === correct) {
+      // ✅ ataque correcto
+      let newMonsters = monsters.map((m) => {
+        if (m.id === currentMonster.id) {
+          return { ...m, hp: m.hp - 25 };
+        }
+        return m;
+      });
+
+      setMessage("✅ Correct! You hit the monster!");
+
+      newMonsters = newMonsters.filter((m) => m.hp > 0);
+      setMonsters(newMonsters);
+
+      endTurn();
+    } else {
+      // ❌ fallaste → daño del monstruo
+      const damage = 15;
+
+      const updatedPlayers = [...players];
+      updatedPlayers[currentPlayerIndex].hp -= damage;
+
+      if (updatedPlayers[currentPlayerIndex].hp <= 0) {
+        updatedPlayers[currentPlayerIndex].alive = false;
+        updatedPlayers[currentPlayerIndex].hp = 0;
+        setMessage("💀 You died!");
+      } else {
+        setMessage(`❌ Wrong! Monster hits you (-${damage} HP)`);
+      }
+
+      setPlayers(updatedPlayers);
+    }
+
+    setInput("");
+  };
+
+  const endTurn = () => {
+    setInBattle(false);
+    setCurrentMonster(null);
+
+    let nextIndex = currentPlayerIndex;
+
+    // buscar siguiente jugador vivo
+    for (let i = 0; i < players.length; i++) {
+      nextIndex = (nextIndex + 1) % players.length;
+      if (players[nextIndex].alive) break;
+    }
+
+    setCurrentPlayerIndex(nextIndex);
+  };
+
+  const allDead = players.every((p) => !p.alive);
+
+  return (
+    <View style={styles.container}>
+      {allDead && (
+        <View style={styles.battle}>
+          <Text style={styles.text}>💀 GAME OVER 💀</Text>
+        </View>
+      )}
+
+      {!inBattle && !allDead && (
+        <>
+          {/* Jugadores */}
+          {players.map((p) => (
+            <View
+              key={p.id}
+              style={[
+                styles.player,
+                {
+                  top: p.y,
+                  left: p.x,
+                  backgroundColor: p.alive
+                    ? p.id === currentPlayer.id
+                      ? "blue"
+                      : "gray"
+                    : "black",
+                },
+              ]}
+            />
+          ))}
+
+          {/* Monstruos */}
+          {monsters.map((m) => (
+            <View
+              key={m.id}
+              style={[styles.monster, { top: m.y, left: m.x }]}
+            />
+          ))}
+
+          {/* UI */}
+          <View style={styles.ui}>
+            <Text style={styles.text}>
+              Turn: {currentPlayer.name} | HP: {currentPlayer.hp}
+            </Text>
+          </View>
+
+          {/* Controles */}
+          <View style={styles.controls}>
+            <TouchableOpacity onPress={() => move(0, -20)} style={styles.btn}>
+              <Text>⬆️</Text>
+            </TouchableOpacity>
+
+            <View style={{ flexDirection: "row" }}>
+              <TouchableOpacity onPress={() => move(-20, 0)} style={styles.btn}>
+                <Text>⬅️</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => move(20, 0)} style={styles.btn}>
+                <Text>➡️</Text>
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity onPress={() => move(0, 20)} style={styles.btn}>
+              <Text>⬇️</Text>
+            </TouchableOpacity>
+          </View>
+        </>
+      )}
+
+      {/* Batalla */}
+      {inBattle && !allDead && (
+        <View style={styles.battle}>
+          <Text style={styles.text}>⚔️ Battle</Text>
+          <Text style={styles.text}>{message}</Text>
+          <Text style={styles.text}>
+            Monster HP: {currentMonster?.hp}
+          </Text>
+
+          <TextInput
+            style={styles.input}
+            placeholder="Write: I am ..."
+            value={input}
+            onChangeText={setInput}
+          />
+
+          <TouchableOpacity onPress={attack} style={styles.attackBtn}>
+            <Text style={{ color: "white" }}>Attack</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: "#111" },
+
+  player: {
+    position: "absolute",
+    width: 40,
+    height: 40,
+  },
+
+  monster: {
+    position: "absolute",
+    width: 40,
+    height: 40,
+    backgroundColor: "red",
+  },
+
+  controls: {
+    position: "absolute",
+    bottom: 40,
+    alignSelf: "center",
+    alignItems: "center",
+  },
+
+  btn: {
+    backgroundColor: "white",
+    padding: 12,
+    margin: 5,
+  },
+
+  battle: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  input: {
+    backgroundColor: "white",
+    width: 220,
+    padding: 8,
+    margin: 10,
+  },
+
+  attackBtn: {
+    backgroundColor: "green",
+    padding: 12,
+  },
+
+  ui: {
+    position: "absolute",
+    top: 40,
+    left: 20,
+  },
+
+  text: {
+    color: "white",
+  },
+});
